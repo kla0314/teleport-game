@@ -4,8 +4,8 @@ using UnityEngine;
 
 public class Teleporter : MonoBehaviour
 {
-    [Header("Teleporter Info")]
 
+    [Header("Teleporter Info")]
     [Tooltip("Automatically assigned when the stage starts")]
     public int id;
 
@@ -13,24 +13,20 @@ public class Teleporter : MonoBehaviour
     public bool isSelected = false;
 
     public float transitionTime = 0.5f;
+    public Color gizmoColor = new Color(255, 0, 0, 0.5f); // Red
 
     private BoxCollider2D boxCollider;
-
-    private Vector2 boxLength = new Vector2(0.4f, 0.4f);
-    private Vector3 ZLocation = new Vector3(0, 0, 0.5f);
+    private TeleporterManager teleporterManager;
+    private Vector2 boxLength = new Vector2(0.5f, 0.5f);
     private Vector3 initialScale;
-    [SerializeField] private float scaleExpand = 1.1f;
+
+    [SerializeField] private float scaleIncrease = 1.1f;
 
     private void Awake()
     {
         boxCollider = GetComponent<BoxCollider2D>();
         initialScale = transform.localScale;
-        Debug.Log(initialScale);
-    }
-
-    // Start is called before the first frame update
-    void Start()
-    {
+        teleporterManager = transform.parent.GetComponent<TeleporterManager>();
     }
 
 
@@ -38,12 +34,12 @@ public class Teleporter : MonoBehaviour
     {
         if (isSelected)
         {
-            StageManager.instance.RemoveTeleporterFromSelection(this);
+            teleporterManager.RemoveTeleporterFromSelection(this);
             SetDeselect();
             
         } 
         else {
-            StageManager.instance.AddTeleporterToSelection(this);
+            teleporterManager.AddTeleporterToSelection(this);
             SetSelect();
         }
     }
@@ -56,7 +52,7 @@ public class Teleporter : MonoBehaviour
 
     public void SetSelect()
     {
-        transform.localScale = initialScale * scaleExpand;
+        transform.localScale = initialScale * scaleIncrease;
         isSelected = true;
     }
 
@@ -67,11 +63,10 @@ public class Teleporter : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
-        if (StageManager.instance.canTeleport && isSelected) {
-            (Teleporter other, int otherID) = StageManager.instance.GetOtherTeleporterFromSelection(id);
+        if (teleporterManager.canTeleport && isSelected) {
+            (Teleporter other, int otherID) = teleporterManager.GetTeleporterFromSelection(id, true);
             Vector3 location  = other.transform.position;
-            TeleportCollider(collision, location);
-            StageManager.instance.ClearSelection();
+            teleporterManager.TeleportCollider(collision, location);
         }
     }
 
@@ -80,24 +75,18 @@ public class Teleporter : MonoBehaviour
         boxCollider.enabled = false;
         Collider2D collision = Physics2D.OverlapBox(transform.position, boxLength, 0);
         boxCollider.enabled = true;
-        Debug.Log(collision);
 
-        if (collision && StageManager.instance.canTeleport && isSelected)
+        if (collision && teleporterManager.canTeleport && isSelected)
         {
-            (Teleporter other, int otherID) = StageManager.instance.GetOtherTeleporterFromSelection(id);
+            (Teleporter other, int otherID) = teleporterManager.GetTeleporterFromSelection(id, true);
             Vector3 location = other.transform.position;
-            TeleportCollider(collision, location);
-            StageManager.instance.ClearSelection();
+            teleporterManager.TeleportCollider(collision, location);
         }
     }
 
-    private void TeleportCollider(Collider2D collision, Vector3 location)
+    private void OnDrawGizmos()
     {
-        Teleportable teleportable = collision.GetComponent<Teleportable>();
-        if (teleportable)
-        {
-            teleportable.Teleport(location + ZLocation);
-        }
+        Gizmos.color = gizmoColor;
+        Gizmos.DrawWireCube(transform.position, boxLength);
     }
-
 }

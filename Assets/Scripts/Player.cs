@@ -13,21 +13,35 @@ public class Player : MonoBehaviour
     }
 
     [Header("Player Setting")]
+    [Range(1f, 10f)]
     public float speed = 1;
-    public float groundDistance = 0.55f;
 
     [Header("Player Logic")]
     public bool isFalling = false;
     public bool hasTeleported = false;
     public DirectionFacing directionFacing = DirectionFacing.RIGHT;
 
+    [SerializeField] private bool isMovementDisabled = false;
+
+    [Range(0.05f, 1f)]
+    [SerializeField] private float waitTime = 0.1f;
     private float linecastMultiplier = 1.0f;
     private Teleportable teleportable;
-    private LayerMask mask;
+    private LayerMask wallMask;
+    private LayerMask boxMask;
+    private BoxCollider2D boxCollider2D;
+    private void Awake()
+    {
+
+        teleportable = GetComponent<Teleportable>();
+        boxCollider2D = GetComponent<BoxCollider2D>();
+        wallMask = LayerMask.GetMask("Walls");
+        boxMask = LayerMask.GetMask("Boxes");
+    }
+
     void Start()
     {
-        teleportable = GetComponent<Teleportable>();
-        mask = LayerMask.GetMask("Walls");
+        GameObject.FindGameObjectWithTag("Gem").GetComponent<Gem>().OnLevelComplete += OnGemContacted;
         StartCoroutine(PlayerMove(NextMove(transform.position)));
     }
 
@@ -50,14 +64,23 @@ public class Player : MonoBehaviour
             }
         }
 
+        yield return StartCoroutine(Wait());
         yield return StartCoroutine(WaitForFalling());
 
-        end = transform.position;
-        Vector3 next = NextMove(end);
-        Debug.DrawLine(end, next, Color.red, 1);
-        StartCoroutine(PlayerMove(next));
+
+        if (!isMovementDisabled)
+        {
+            end = transform.position;
+            Vector3 next = NextMove(end);
+            Debug.DrawLine(end, next, Color.red, 1);
+            StartCoroutine(PlayerMove(next));
+        }
     }
 
+    IEnumerator Wait()
+    {
+        yield return new WaitForSeconds(0.1f);
+    }
     // Get the next open position for the player to move to
     public Vector3 NextMove(Vector3 start)
     {
@@ -119,32 +142,46 @@ public class Player : MonoBehaviour
     public bool CheckIfPlayerHitWall(Vector3 start, DirectionFacing direction)
     {
         Vector3 end = start + GetVectorDirection(direction) * linecastMultiplier;
-        RaycastHit2D hit = Physics2D.Linecast(start, end, mask);
+        RaycastHit2D hit = Physics2D.Linecast(start, end, wallMask);
         return hit ? true : false;
     }
 
-    // Occurs when the player runs into a wall
+    // Change the direction and flip the sprite
     public void SwitchDirection()
     {
-        directionFacing = directionFacing == DirectionFacing.RIGHT ? DirectionFacing.LEFT : DirectionFacing.RIGHT;
-    }
+        bool willTurnLeft = directionFacing == DirectionFacing.RIGHT;
 
-    // Checks if player is falling by casting a raycast and checking its distance from the ground
-    public bool IsFalling(Vector3 start)
-    {
-        RaycastHit2D hit = Physics2D.Raycast(start, Vector2.down, Mathf.Infinity, mask);
-        Debug.DrawRay(start, Vector3.down, Color.blue, 1);
-        return hit.distance >= groundDistance;
+        if (willTurnLeft)
+        {
+            directionFacing = DirectionFacing.LEFT;
+            transform.eulerAngles = new Vector3(0, 180, 0);
+        } 
+        else
+        {
+            directionFacing = DirectionFacing.RIGHT;
+            transform.eulerAngles = new Vector3(0, 0, 0);
+        }
     }
 
     // Waits for player to finish falling
     public IEnumerator WaitForFalling()
     {
         isFalling = true;
-        while (IsFalling(transform.position))
+/*        Debug.Log(boxCollider2D.IsTouchingLayers(wallMask));
+        Debug.Log(transform.position);*/
+
+        // Check if the player is on top of the wall or box
+        while (!boxCollider2D.IsTouchingLayers(wallMask | boxMask))
         {
             yield return new WaitForEndOfFrame();
         }
+
         isFalling = false;
+    }
+    
+
+    public void OnGemContacted()
+    {
+        isMovementDisabled = true;
     }
 }
